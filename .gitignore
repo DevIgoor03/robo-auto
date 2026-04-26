@@ -30,5 +30,4 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 
-# Prisma
-prisma/migrations/
+# Prisma — as migrations **têm** de ir para o Git (Render / CI usam `prisma migrate deploy`).
