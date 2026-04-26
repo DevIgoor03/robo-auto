@@ -89,7 +89,13 @@ Isto cobre **preview deploys** do static sem perder produção.
 
 | Sintoma | O quê fazer |
 |---------|-------------|
-| Build Prisma falha | Ver logs do **robo-auto-api**; confirma `DATABASE_URL` (a Render injeta SSL na connection string). |
-| CORS / login falha | `FRONTEND_URL` tem de coincidir com o URL **exacto** do browser (inclui `https://`). |
-| Socket.IO não liga | Mesma origem CORS + `VITE_API_URL` correcto no build do static. |
-| `better-sqlite3` / nativo | O ficheiro `src/database/db.ts` (SQLite local) **não** é usado pelo fluxo principal com Prisma; se o build falhar por nativos, vê os logs do `npm ci`. |
+| **`prisma migrate deploy` falha** / “No pending migrations” mas BD vazia | As pastas **`backend/prisma/migrations/`** têm de estar **no GitHub**. Se antes estavam no `.gitignore`, remove essa linha, faz `git add backend/prisma/migrations` e **push**. |
+| **`tsc: not found`** ou build TypeScript falha | Na Render, `NODE_ENV=production` durante `npm ci` omite **devDependencies**. O `render.yaml` já usa `NPM_CONFIG_PRODUCTION=false` no **buildCommand**; confirma que fizeste **push** desta versão. |
+| Build Prisma falha | Logs do **robo-auto-api**; confirma `DATABASE_URL`. |
+| CORS / login falha | `FRONTEND_URL` = URL **exacto** do static (`https://…`). |
+| Socket.IO não liga | `VITE_API_URL` correcto + **rebuild** do static com cache limpo. |
+| `better-sqlite3` / nativo | Se `npm ci` falhar a compilar nativos, vê os logs; em geral a Render (Ubuntu) compila. |
+
+### Onde ver o erro exacto
+
+No dashboard: **robo-auto-api** → **Logs** → filtra pela última tentativa de **Deploy**; a mensagem no fim do build ou no arranque (`migrate deploy`) diz a causa.
