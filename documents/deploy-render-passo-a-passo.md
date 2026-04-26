@@ -9,6 +9,8 @@ Este projeto está preparado com **`render.yaml`** na raiz (Blueprint): PostgreS
 - Conta em [render.com](https://render.com) com GitHub ligado.
 - Repositório Git com este código (incluindo `render.yaml`).
 
+> **Nota:** No `render.yaml`, o serviço **static** (`robo-auto-web`) **não** pode ter `region` nem `plan` — a Render rejeita o Blueprint com *“static sites cannot have a region”*.
+
 ---
 
 ## Passo 1 — Criar a stack (Blueprint)

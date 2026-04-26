@@ -54,11 +54,10 @@ services:
       - key: BULLEX_PLATFORM_ID
         value: "580"
 
+  # Static sites na Render não aceitam `region` nem `plan` no Blueprint.
   - type: web
     name: robo-auto-web
     runtime: static
-    region: frankfurt
-    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
