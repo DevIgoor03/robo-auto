@@ -1,0 +1,235 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Base ─────────────────────────────────────────────────────── */
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; }
+
+  :root {
+    font-family: 'Inter', system-ui, sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv02','cv03','cv04','cv11';
+
+    /* Light — alinhado ao login (tinta verde suave), sem “cinza de hospital” */
+    --bg:            oklch(0.965 0.012 150);
+    --surface:       #ffffff;
+    --surface-2:     oklch(0.98 0.01 150);
+    --border:        oklch(0.90 0.02 145);
+    --border-subtle: oklch(0.95 0.008 150);
+    --text-1:        oklch(0.22 0.02 155);
+    --text-2:        oklch(0.45 0.02 150);
+    --text-3:        oklch(0.58 0.02 150);
+    --shadow-card:   0 1px 2px rgba(22, 101, 52, 0.04), 0 4px 20px rgba(22, 101, 52, 0.06);
+  }
+
+  .dark {
+    /* Dashboards: fundo #161C24 · caixas/sessão #212B36 */
+    --bg:            #161C24;
+    --surface:       #212B36;
+    --surface-2:     #2A3544;
+    --border:        rgba(255, 255, 255, 0.1);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --text-1:        #F1F5F9;
+    --text-2:        #B4C0CE;
+    --text-3:        #8B98AB;
+    --shadow-card:   0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 8px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
+  body {
+    background: var(--bg);
+    color: var(--text-1);
+    margin: 0;
+    min-height: 100vh;
+    transition: background-color 0.2s, color 0.2s;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 40px var(--surface) inset !important;
+    -webkit-text-fill-color: var(--text-1) !important;
+  }
+}
+
+/* Login / admin login: autofill não pode herdar texto claro sobre fundo branco */
+.login-auth-shell input:-webkit-autofill,
+.login-auth-shell input:-webkit-autofill:hover,
+.login-auth-shell input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #171717 !important;
+  caret-color: #171717;
+}
+
+/* ─── Components ──────────────────────────────────────────────── */
+@layer components {
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-card);
+  }
+  .dark .card {
+    background: var(--surface);
+    border-color: var(--border);
+    box-shadow: var(--shadow-card);
+  }
+  .card-hover {
+    @apply transition-all duration-200;
+  }
+  .card-hover:hover {
+    box-shadow: 0 2px 8px rgba(22, 101, 52, 0.08), 0 10px 28px rgba(22, 101, 52, 0.07);
+    border-color: rgba(132, 204, 22, 0.28);
+  }
+  .dark .card-hover:hover {
+    border-color: oklch(0.62 0.20 152 / 0.35);
+  }
+
+  /* Surface2 */
+  .surface-2 { background: var(--surface-2); border: 1px solid var(--border-subtle); }
+
+  /* Inputs */
+  .field {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.875rem;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    outline: none;
+  }
+  .field::placeholder { color: var(--text-3); }
+  .field:focus {
+    border-color: #84cc16;
+    box-shadow: 0 0 0 3px rgba(132,204,22,0.15);
+  }
+  .dark .field:focus {
+    border-color: oklch(0.62 0.20 152);
+    box-shadow: 0 0 0 3px oklch(0.62 0.20 152 / 0.22);
+  }
+
+  /* Buttons */
+  .btn-brand {
+    @apply bg-brand-500 hover:bg-brand-600 active:bg-brand-700 text-white font-semibold
+           px-4 py-2.5 rounded-xl text-sm transition-all duration-150
+           disabled:opacity-50 disabled:cursor-not-allowed
+           flex items-center justify-center gap-2 shadow-sm;
+  }
+  .dark .btn-brand {
+    background: oklch(0.62 0.20 152);
+    box-shadow: 0 8px 24px oklch(0.62 0.20 152 / 0.28);
+  }
+  .dark .btn-brand:hover {
+    background: oklch(0.58 0.20 152);
+    filter: brightness(1.06);
+  }
+  .dark .btn-brand:active {
+    background: oklch(0.52 0.18 152);
+  }
+  .btn-white {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    @apply font-medium px-4 py-2.5 rounded-xl text-sm
+           flex items-center justify-center gap-2
+           hover:opacity-80 transition-all duration-150;
+  }
+  .btn-ghost {
+    color: var(--text-2);
+    @apply hover:bg-black/5 dark:hover:bg-white/5 px-3 py-2 rounded-lg
+           text-sm transition-all duration-150 flex items-center gap-2;
+  }
+  .btn-icon {
+    @apply w-9 h-9 flex items-center justify-center rounded-xl
+           transition-all duration-150;
+    color: var(--text-2);
+  }
+  .btn-icon:hover { background: rgba(0,0,0,0.05); }
+  .dark .btn-icon:hover { background: rgba(255,255,255,0.06); }
+
+  /* Badges */
+  .badge        { @apply inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium; }
+  .badge-green  { @apply bg-brand-100  text-brand-700; }
+  .badge-red    { @apply bg-red-100    text-red-700;   }
+  .badge-blue   { @apply bg-blue-100   text-blue-700;  }
+  .badge-yellow { @apply bg-yellow-100 text-yellow-700; }
+  .badge-gray   { @apply bg-gray-100   text-gray-600;  }
+  .dark .badge-green  { background: oklch(0.62 0.20 152 / 0.18); color: oklch(0.78 0.20 152); }
+  .dark .badge-red    { background: rgba(239,68, 68,0.15);  color: #f87171; }
+  .dark .badge-blue   { background: rgba(59,130,246,0.15);  color: #60a5fa; }
+  .dark .badge-yellow { background: rgba(234,179,8,0.15);   color: #facc15; }
+  .dark .badge-gray   { background: rgba(255,255,255,0.08); color: #9ca3af; }
+
+  /* Typo */
+  .label        { @apply block text-xs font-medium mb-1.5; color: var(--text-2); }
+  .section-title{ @apply text-xs font-semibold uppercase tracking-widest; color: var(--text-3); }
+  .num          { font-family: 'JetBrains Mono','Fira Code',monospace; font-variant-numeric: tabular-nums; }
+  .stat-big     { @apply text-3xl font-bold tracking-tight num; color: var(--text-1); }
+
+  .divider { border-top: 1px solid var(--border); }
+}
+
+/* ─── Utilities ───────────────────────────────────────────────── */
+@layer utilities {
+  .text-gradient-brand {
+    background: linear-gradient(135deg, #84cc16 0%, #65a30d 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .dark .text-gradient-brand {
+    background: linear-gradient(135deg, oklch(0.72 0.22 152), oklch(0.65 0.20 175));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .bg-brand-gradient { background: linear-gradient(135deg, #a3e635 0%, #65a30d 100%); }
+  .dark .bg-brand-gradient {
+    background: linear-gradient(135deg, oklch(0.62 0.20 152), oklch(0.52 0.18 160));
+  }
+  .text-c1 { color: var(--text-1); }
+  .text-c2 { color: var(--text-2); }
+  .text-c3 { color: var(--text-3); }
+  .bg-surface  { background: var(--surface);   }
+  .bg-surface2 { background: var(--surface-2); }
+  .border-c  { border-color: var(--border); }
+
+  .login-marquee-track {
+    display: flex;
+    width: max-content;
+    animation: login-marquee-scroll 32s linear infinite;
+  }
+}
+
+/* Keyframes globais (fora de @layer — mais fiável que só Tailwind). */
+@keyframes login-marquee-scroll {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-marquee-track {
+    animation: none;
+  }
+}

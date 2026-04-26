@@ -1,0 +1,197 @@
+generator client {
+  provider      = "prisma-client-js"
+  // native = máquina onde corre `prisma generate`; musl = Docker Alpine; debian = Render / Ubuntu glibc
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── System Users (Masters who access the dashboard) ─────────────────────────
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(MASTER)
+  /// Plano comercial (apenas usuários MASTER; ADMIN ignora).
+  subscriptionPlan CopyPlan @default(START) @map("subscription_plan")
+  /// Identificador na URL do portal: /portal/{portalSlug} (único entre masters).
+  portalSlug   String?  @unique @map("portal_slug")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  masterAccount   MasterAccount?
+  refreshSessions RefreshSession[]
+  portalAllowlistEntriesCreated FollowerPortalAllowlist[] @relation("PortalAllowlistCreatedBy")
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  MASTER
+}
+
+/// Plano de assinatura do operador (master) — define limites e performance do copy.
+enum CopyPlan {
+  START
+  PRO
+  ELITE
+}
+
+// ─── Bullex Master Trading Accounts ─────────────────────────────────────────
+model MasterAccount {
+  id                String   @id @default(cuid())
+  userId            String   @unique @map("user_id")
+  bullexEmail       String   @map("bullex_email")
+  encryptedPassword String   @map("encrypted_password")
+  name              String
+  currency          String   @default("USD")
+  balanceReal       Float    @default(0) @map("balance_real")
+  balanceDemo       Float    @default(0) @map("balance_demo")
+  isConnected       Boolean  @default(false) @map("is_connected")
+  copyRunning       Boolean  @default(false) @map("copy_running")
+  /// Robô automático (operações na própria conta, sem copy)
+  robotRunning      Boolean  @default(false) @map("robot_running")
+  robotEndsAt       DateTime? @map("robot_ends_at")
+  dashboardSessionStartedAt DateTime? @map("dashboard_session_started_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  followers FollowerAccount[]
+  trades    Trade[]
+  /// Emails Bullex autorizados pelo super admin a aceder ao /portal deste master.
+  portalAllowlist FollowerPortalAllowlist[]
+
+  @@map("master_accounts")
+}
+
+/// Liberação explícita (super admin) para o seguidor entrar no portal com aquele email Bullex neste master.
+model FollowerPortalAllowlist {
+  id               String   @id @default(cuid())
+  masterId         String   @map("master_id")
+  bullexEmail      String   @map("bullex_email")
+  createdAt        DateTime @default(now()) @map("created_at")
+  createdByUserId String? @map("created_by_user_id")
+
+  master    MasterAccount @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  createdBy User?         @relation("PortalAllowlistCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([masterId, bullexEmail])
+  @@index([masterId])
+  @@map("follower_portal_allowlist")
+}
+
+// ─── Follower Accounts ────────────────────────────────────────────────────────
+model FollowerAccount {
+  id                String      @id @default(cuid())
+  masterId          String      @map("master_id")
+  bullexEmail       String      @map("bullex_email")
+  encryptedPassword String      @map("encrypted_password")
+  name              String
+  currency          String      @default("USD")
+  // Copy settings
+  copyMode          CopyMode    @default(FIXED) @map("copy_mode")
+  copyAmount        Float       @default(5) @map("copy_amount")
+  accountType       AccountType @default(DEMO) @map("account_type")
+  isActive          Boolean     @default(true) @map("is_active")
+  followerActivatedDay String   @default("") @map("follower_activated_day") // YYYY-MM-DD; required for daily activation
+  stopWin           Float?      @map("stop_win")
+  stopLoss          Float?      @map("stop_loss")
+  // Live balances
+  balanceReal       Float       @default(0) @map("balance_real")
+  balanceDemo       Float       @default(0) @map("balance_demo")
+  // Session stats
+  totalTrades       Int         @default(0) @map("total_trades")
+  wins              Int         @default(0)
+  losses            Int         @default(0)
+  profit            Float       @default(0)
+  sessionStartedAt  DateTime?   @map("session_started_at")
+  sessionDay        String      @default("") @map("session_day") // YYYY-MM-DD (server local time)
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  master         MasterAccount   @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  trades         Trade[]
+  portalSessions PortalSession[]
+
+  @@unique([masterId, bullexEmail])
+  @@index([masterId])
+  @@map("follower_accounts")
+}
+
+enum CopyMode {
+  FIXED
+  MULTIPLIER
+  PROPORTIONAL
+}
+
+enum AccountType {
+  REAL
+  DEMO
+}
+
+// ─── Trades ───────────────────────────────────────────────────────────────────
+model Trade {
+  id               String    @id @default(cuid())
+  masterId         String    @map("master_id")
+  /// Null = operação do robô na conta do próprio utilizador (sem seguidor)
+  followerId       String?   @map("follower_id")
+  followerName     String?   @map("follower_name")
+  // Position tracking
+  masterPositionId String    @map("master_position_id")
+  positionId       String    @default("") @map("position_id")
+  // Trade details
+  amount           Float
+  direction        String    @default("call")
+  instrumentName   String    @default("") @map("instrument_name")
+  // Result
+  status           String    @default("OPEN")      // OPEN | WIN | LOSS
+  profit           Float     @default(0)
+  openedAt         DateTime  @default(now()) @map("opened_at")
+  closedAt         DateTime? @map("closed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  master   MasterAccount    @relation(fields: [masterId], references: [id], onDelete: Cascade)
+  follower FollowerAccount? @relation(fields: [followerId], references: [id], onDelete: Cascade)
+
+  @@index([masterId])
+  @@index([followerId])
+  @@index([masterPositionId])
+  @@index([status])
+  @@map("trades")
+}
+
+// ─── Auth Sessions (JWT Refresh Tokens) ──────────────────────────────────────
+model RefreshSession {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  userAgent String?  @map("user_agent")
+  ip        String?
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_sessions")
+}
+
+// ─── Portal Sessions (Follower self-service) ──────────────────────────────────
+model PortalSession {
+  id         String   @id @default(cuid())
+  followerId String   @map("follower_id")
+  token      String   @unique
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  follower FollowerAccount @relation(fields: [followerId], references: [id], onDelete: Cascade)
+
+  @@index([followerId])
+  @@map("portal_sessions")
+}

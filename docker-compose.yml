@@ -1,0 +1,43 @@
+# ─── Development: only infrastructure (instância própria — não conflita com ct_postgres/ct_redis)
+# Run: docker compose up -d
+# Then: npm run dev in /backend and /frontend
+#
+# Portas no host: Postgres 5436, Redis 6380 (se 5436 estiver ocupada, mude para 5437 no compose e no .env)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: roboauto_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       roboauto
+      POSTGRES_USER:     roboauto
+      POSTGRES_PASSWORD: roboauto123
+    ports:
+      - "5436:5432"
+    volumes:
+      - roboauto_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U roboauto -d roboauto"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: roboauto_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass roboauto_redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - roboauto_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "roboauto_redis", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  roboauto_postgres_data:
+  roboauto_redis_data:

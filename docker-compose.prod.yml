@@ -1,0 +1,127 @@
+# ─── CopyTrader — Production Stack ───────────────────────────────────────────
+# Usage: docker compose -f docker-compose.prod.yml up -d --build
+#
+# Required env vars (copy .env.production → .env.prod and fill in):
+#   POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET,
+#   JWT_REFRESH_SECRET, ENCRYPTION_KEY
+
+services:
+
+  # ─── PostgreSQL ─────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: roboauto_postgres
+    restart: always
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-copytrader}
+      POSTGRES_USER:     ${POSTGRES_USER:-copytrader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - roboauto_postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-copytrader} -d ${POSTGRES_DB:-copytrader}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: roboauto_redis
+    restart: always
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - roboauto_redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  # ─── Backend API ─────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: copytrader-backend:latest
+    container_name: roboauto_backend
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV:              production
+      PORT:                  3001
+      DATABASE_URL:          postgresql://${POSTGRES_USER:-copytrader}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-copytrader}
+      REDIS_URL:             redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET:            ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_REFRESH_SECRET:    ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      JWT_EXPIRES_IN:        ${JWT_EXPIRES_IN:-15m}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
+      ENCRYPTION_KEY:        ${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      FRONTEND_URL:          ${FRONTEND_URL:-http://localhost}
+      BULLEX_PLATFORM_ID:    ${BULLEX_PLATFORM_ID:-580}
+      # Primeiro utilizador ADMIN (só usado se ainda não existir nenhum ADMIN na BD)
+      INITIAL_ADMIN_EMAIL:    ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      INITIAL_ADMIN_NAME:     ${INITIAL_ADMIN_NAME:-Super Admin}
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 120s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Frontend (Nginx: serve React + proxy /api/ e /socket.io/) ───────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""   # Empty = use relative URLs (Nginx proxies internally)
+    image: copytrader-frontend:latest
+    container_name: roboauto_frontend
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Certificados Let's Encrypt no host (gerados por ssl-setup.sh na VPS)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - internal
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+networks:
+  internal:
+    driver: bridge
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  roboauto_postgres_data:
+    driver: local
+  roboauto_redis_data:
+    driver: local
