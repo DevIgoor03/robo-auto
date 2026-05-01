@@ -20,7 +20,11 @@ fi
 command -v docker &>/dev/null || error "Docker não instalado. Execute setup-vps.sh primeiro."
 [ -f ".env.prod" ]            || error "Arquivo .env.prod não encontrado. Copie de .env.production e preencha."
 
-info "=== CopyTrader Deploy ==="
+# Porta HTTP do host (mesmo valor que FRONTEND_HTTP_PORT no .env.prod — default 8080)
+FRONTEND_HTTP_PORT="$(grep -E '^[[:space:]]*FRONTEND_HTTP_PORT=' .env.prod 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r' | tr -d '"' | tr -d "'")"
+FRONTEND_HTTP_PORT="${FRONTEND_HTTP_PORT:-8080}"
+
+info "=== robo-auto Deploy ==="
 info "Iniciando build e deploy..."
 
 # ─── Stop current containers ──────────────────────────────────────────────────
@@ -50,24 +54,25 @@ echo ""
 # ─── Health check ─────────────────────────────────────────────────────────────
 info "Verificando health do backend..."
 MAX_TRIES=12; TRY=0
-until curl -sf http://localhost/api/health > /dev/null 2>&1; do
+until curl -sf "http://localhost:${FRONTEND_HTTP_PORT}/api/health" > /dev/null 2>&1; do
   TRY=$((TRY+1))
-  [ $TRY -ge $MAX_TRIES ] && { echo -e "${YELLOW}Backend não respondeu em 60s — verifique: docker compose logs ct_backend${NC}"; break; }
+  [ $TRY -ge $MAX_TRIES ] && { echo -e "${YELLOW}Backend não respondeu em 60s — verifique: docker compose -f docker-compose.prod.yml --env-file .env.prod logs backend --tail 80${NC}"; break; }
   echo "  Aguardando... ($TRY/$MAX_TRIES)"
   sleep 5
 done
 
-if curl -sf http://localhost/api/health > /dev/null 2>&1; then
+if curl -sf "http://localhost:${FRONTEND_HTTP_PORT}/api/health" > /dev/null 2>&1; then
   success "Backend saudável!"
 fi
 
 echo ""
 success "=== Deploy concluído! ==="
 echo ""
-echo "  Acesse: http://$(curl -s ifconfig.me 2>/dev/null || echo 'SEU_IP')"
+echo "  Site (Nginx no host): http://$(curl -s ifconfig.me 2>/dev/null || echo 'SEU_IP'):${FRONTEND_HTTP_PORT}"
+echo "  (Use FRONTEND_URL no .env.prod para o domínio / HTTPS no proxy principal.)"
 echo ""
 echo "Comandos úteis:"
-echo "  Logs backend:  docker compose -f docker-compose.prod.yml logs -f ct_backend"
-echo "  Logs frontend: docker compose -f docker-compose.prod.yml logs -f ct_frontend"
+echo "  Logs backend:  docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f backend"
+echo "  Logs frontend: docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f frontend"
 echo "  Status:        docker compose -f docker-compose.prod.yml ps"
 echo "  Parar tudo:    docker compose -f docker-compose.prod.yml down"

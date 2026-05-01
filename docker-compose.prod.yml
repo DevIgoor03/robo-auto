@@ -100,9 +100,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # Host:contentor — se a 80/443 já estiverem ocupadas (outro Nginx na VPS), usa 8080/8443 ou outras livres.
     ports:
-      - "80:80"
-      - "443:443"
+      - "${FRONTEND_HTTP_PORT:-8080}:80"
+      - "${FRONTEND_HTTPS_PORT:-8443}:443"
     volumes:
       # Certificados Let's Encrypt no host (gerados por ssl-setup.sh na VPS)
       - /etc/letsencrypt:/etc/letsencrypt:ro

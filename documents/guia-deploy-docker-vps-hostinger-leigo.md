@@ -127,23 +127,33 @@ bash deploy.sh --no-cache
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps
-curl -s http://localhost/api/health
+curl -s "http://localhost:8080/api/health"
 ```
 
-No PC, no browser: **`http://SEU_IP`**.
+(Se mudaste `FRONTEND_HTTP_PORT` no `.env.prod`, usa essa porta no `curl`.)
+
+No PC, no browser: **`http://SEU_IP:8080`** (ou o domínio que o Nginx principal encaminha para essa porta).
 
 ---
 
-## 9. Porta 80 ocupada (outro site na mesma VPS)
+## 9. Porta 80 ou 443 já ocupada (outro site na mesma VPS)
 
-Se o deploy do frontend falhar com *port already allocated*:
+Por defeito o `docker-compose.prod.yml` mapeia o Nginx do contentor para **`8080`** (HTTP) e **`8443`** (HTTPS) **no host**, para não conflitar com outro serviço na **80/443**.
 
-```bash
-ss -tlnp | grep ':80'
-docker ps
+No `.env.prod` podes alterar:
+
+```env
+FRONTEND_HTTP_PORT=8080
+FRONTEND_HTTPS_PORT=8443
 ```
 
-Para o que estiver a usar a **80** (outro Nginx, outro Docker) ou usa **um só** reverse proxy para vários domínios.
+O site fica acessível em **`http://IP_DA_VPS:8080`** até configurares o **Nginx “principal”** da VPS (o que já usa a 80) a fazer **proxy_pass** para `http://127.0.0.1:8080` no host `robo.copy-fy.com` (ou o teu domínio). O **`FRONTEND_URL`** deve ser o URL **público** que o browser usa (ex.: `https://robo.copy-fy.com`).
+
+Se ainda vires *port already allocated*, verifica portas livres:
+
+```bash
+ss -tlnp | grep -E ':8080|:8443'
+```
 
 ---
 
