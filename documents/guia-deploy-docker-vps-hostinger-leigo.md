@@ -1,262 +1,194 @@
-# Guia leigo: subir o CopyTrader na VPS Hostinger com Docker
+# Guia leigo: subir o **robo-auto** na VPS Ubuntu (Hostinger) com Docker
 
-Este texto explica **do zero**, em linguagem simples, como colocar o projeto a rodar na sua VPS da Hostinger **sem erros comuns**. Guarde este ficheiro para consulta.
+Passo a passo **do zero** para colocar o site + API + PostgreSQL + Redis a correr na VPS **sem erros comuns**.
 
-**Tempo:** cerca de 30–45 minutos na primeira vez.  
-**Requisito da VPS:** Ubuntu 22.04 (ou 24.04), **pelo menos 2 GB de RAM** (plano KVM 2 ou superior na Hostinger).
-
----
-
-## 1. O que você vai fazer (visão geral)
-
-| Conceito | Em palavras simples |
-|----------|---------------------|
-| **VPS** | Um computador Linux na internet só seu, com IP fixo. |
-| **Docker** | Empacota a aplicação (site + API + base de dados) em “caixas” que arrancam sempre igual. |
-| **SSH** | Ligação segura do seu PC ao terminal desse computador, para dar comandos. |
-| **Repositório GitHub** | O código está em `https://github.com/DevIgoor03/CopyTraderV3.git` — a VPS vai **baixar** de lá. |
-
-O que sobe na VPS:
-
-- **Frontend** (página web) na **porta 80** — é o que abre no browser com `http://SEU_IP`.
-- **Backend** (API) **dentro** da rede Docker — o Nginx do frontend encaminha `/api/` para ele.
-- **PostgreSQL** e **Redis** — também dentro do Docker, com dados guardados em **volumes** (não se perdem ao reiniciar o contentor).
+**Tempo:** 30–60 minutos na 1.ª vez.  
+**VPS:** **Ubuntu 22.04** ou **24.04**, **≥ 2 GB RAM** (recomendado).
 
 ---
 
-## 2. O que precisa antes de começar
+## 1. O que vais fazer (resumo)
 
-1. **IP público da VPS** (ex.: `72.61.xxx.xxx`) — vem no e-mail/painel Hostinger.  
-2. **Palavra-passe root** (ou utilizador com `sudo`) — também da Hostinger.  
-3. **Sistema da VPS = Ubuntu** — ao criar a VPS, escolha Ubuntu 22.04 LTS.  
-4. No **GitHub**, o repositório **CopyTraderV3** tem de estar **público** ou a VPS precisa de **token** para clonar (se for privado).
+| Peça | Função |
+|------|--------|
+| **VPS** | Servidor Linux com IP fixo (Hostinger). |
+| **Docker** | Corre frontend (Nginx), backend (Node), Postgres e Redis em contentores. |
+| **SSH** | Entras no servidor a partir do teu PC para correr comandos. |
+| **GitHub** | Código em `https://github.com/DevIgoor03/robo-auto.git` (ou o teu fork). |
+
+No fim abres **`http://IP_DA_VPS`** no browser; a API fica em **`/api/`** atrás do mesmo Nginx.
 
 ---
 
-## 3. Ligar à VPS (SSH)
+## 2. Antes de começar
 
-No **Windows**, abra o **PowerShell** ou o **Terminal**.
+1. **IP público** da VPS (painel Hostinger).  
+2. **Password** do `root` (ou utilizador com `sudo`).  
+3. Ubuntu **22.04 LTS** ao criar a VPS.  
+4. Repositório **público** ou **token** GitHub se for privado.
 
-Substitua `SEU_IP` pelo IP real:
+---
+
+## 3. SSH a partir do Windows
+
+PowerShell ou Terminal:
 
 ```bash
 ssh root@SEU_IP
 ```
 
-- Na primeira vez pode perguntar se confia no servidor — escreva `yes` e Enter.  
-- Depois pede a **password** — ao escrever, **não aparece nada** no ecrã; é normal. Enter no fim.
-
-Se não conseguir entrar: confirme IP, password e se a Hostinger já terminou de criar a VPS (às vezes demora alguns minutos).
+- 1.ª vez: escreve `yes` se perguntar.  
+- Password não aparece ao escrever — é normal.
 
 ---
 
-## 4. Preparar a VPS (Docker + firewall) — uma vez
+## 4. Git + pasta do projeto (evita pasta duplicada)
 
-Ainda **como root** no SSH, instale o Git (para clonar o projeto) e depois execute o script que já vem no repositório.
-
-### 4.1 Instalar Git e clonar o projeto
+**Forma certa** (código fica directamente em `/opt/robo-auto`):
 
 ```bash
 apt-get update -qq && apt-get install -y -qq git curl
-mkdir -p /opt/copytrader
-git clone https://github.com/DevIgoor03/CopyTraderV3.git /opt/copytrader
-cd /opt/copytrader
+mkdir -p /opt/robo-auto
+cd /opt/robo-auto
+git clone https://github.com/DevIgoor03/robo-auto.git .
 ```
 
-Se o `git clone` falhar com **403** ou **autenticação**, o repositório pode estar privado ou há bloqueio — use um [Personal Access Token](https://github.com/settings/tokens) no URL ou torne o repo público.
+O **`.`** no fim do `git clone` evita criar `/opt/robo-auto/robo-auto/`.
 
-### 4.2 Rodar o script de setup (Docker + UFW)
+**Se já clonaste sem o `.`** e tens `/opt/robo-auto/robo-auto/` com o código:
+
+```bash
+cd /opt/robo-auto/robo-auto
+```
+
+(Usa **esta** pasta para todos os comandos seguintes.)
+
+---
+
+## 5. Docker e firewall (uma vez)
+
+Na pasta onde estão `setup-vps.sh` e `docker-compose.prod.yml`:
 
 ```bash
 chmod +x setup-vps.sh
 bash setup-vps.sh
 ```
 
-Isto faz, de forma automática:
-
-- Atualiza pacotes do Ubuntu.  
-- Instala **Docker** e **docker compose**.  
-- Configura o **firewall (UFW)** para permitir **SSH (22)**, **HTTP (80)** e **HTTPS (443)**.
-
-**Nota:** Se no fim aparecer que o seu utilizador foi adicionado ao grupo `docker`, para usar Docker **sem sudo** teria de sair e voltar a entrar no SSH. Para este guia, **pode continuar como root** e não há problema.
+Instala Docker, Docker Compose e abre **22**, **80** e **443** no UFW.
 
 ---
 
-## 5. Criar o ficheiro de segredos (`.env.prod`)
+## 6. Ficheiro `.env.prod` (segredos)
 
-O Docker **obriga** variáveis como senhas do Postgres, Redis e chaves JWT. **Nunca** commite `.env.prod` para o Git.
+Na **mesma pasta** do `docker-compose.prod.yml`:
 
 ```bash
-cd /opt/copytrader
 cp .env.production .env.prod
 nano .env.prod
 ```
 
-No **nano**, altere **obrigatoriamente**:
+Substitui **tudo** o que for `TROQUE_...` por valores reais:
 
-| Variável | O que pôr |
-|----------|-----------|
-| `POSTGRES_PASSWORD` | Senha forte (guarde num sítio seguro). |
-| `REDIS_PASSWORD` | **Outra** senha forte. |
-| `JWT_SECRET` | Ver abaixo — gerar na VPS. |
-| `JWT_REFRESH_SECRET` | **Outro** valor gerado (não pode ser igual ao JWT_SECRET). |
-| `ENCRYPTION_KEY` | Ver abaixo — comprimento correto. |
-| `FRONTEND_URL` | `http://SEU_IP` **exatamente** como vai abrir no browser (se usar domínio depois, muda para `https://...`). |
+| Variável | O quê |
+|----------|--------|
+| `POSTGRES_PASSWORD` | Senha forte (Postgres). |
+| `REDIS_PASSWORD` | **Outra** senha (Redis). |
+| `JWT_SECRET` | `openssl rand -hex 64` (na VPS). |
+| `JWT_REFRESH_SECRET` | **Outro** `openssl rand -hex 64` (diferente do anterior). |
+| `ENCRYPTION_KEY` | `openssl rand -hex 32`. |
+| `FRONTEND_URL` | Como vais abrir o site: `http://IP_DA_VPS` ou `https://teu-dominio.com` (tem de bater **certo** com o browser, senão CORS/cookies falham). |
 
-**Gerar valores seguros** (abra **outro** terminal SSH ou saia do nano com `Ctrl+X`, gere, e volte a editar):
+Se **não** existir `.env.production` no clone, cria `.env.prod` à mão com as mesmas chaves que o `docker-compose.prod.yml` exige.
 
-```bash
-# JWT (corre duas vezes e copia valores DIFERENTES)
-openssl rand -hex 64
-
-# Chave de encriptação (uma vez)
-openssl rand -hex 32
-```
-
-No nano: **guardar** = `Ctrl+O`, Enter; **sair** = `Ctrl+X`.
-
-**Erro comum:** deixar `FRONTEND_URL` com `SEU_IP_OU_DOMINIO` sem substituir — cookies/CORS podem falhar. Use o IP real, ex.: `http://72.61.xxx.xxx`.
+Nano: gravar `Ctrl+O`, Enter · sair `Ctrl+X`.
 
 ---
 
-## 6. Fazer o deploy (build + arranque)
+## 7. Deploy
 
 ```bash
-cd /opt/copytrader
 chmod +x deploy.sh
 bash deploy.sh
 ```
 
-- Na **primeira vez** o build pode demorar **vários minutos** (é normal).  
-- O script para contentores antigos, constrói imagens, sobe Postgres → Redis → Backend → Frontend e testa o health.
+A 1.ª vez o build pode demorar **vários minutos**.
 
-### Quando atualizar o código (mais tarde)
-
-Depois de `git pull`, a Hostinger/regra do projeto pede rebuild limpo:
+**Actualizar código mais tarde:**
 
 ```bash
-cd /opt/copytrader
-git pull origin main
+cd /opt/robo-auto
+git pull
 bash deploy.sh --no-cache
 ```
 
-`--no-cache` força o Docker a **não** reutilizar camadas antigas — evita “fantasmas” de builds anteriores.
-
 ---
 
-## 7. Confirmar que está tudo bem
+## 8. Confirmar
 
 ```bash
-cd /opt/copytrader
 docker compose -f docker-compose.prod.yml --env-file .env.prod ps
-```
-
-Quer ver os serviços **running** e, para os que têm healthcheck, **healthy**.
-
-Teste no próprio servidor:
-
-```bash
 curl -s http://localhost/api/health
 ```
 
-No **seu PC**, abra o browser:
-
-`http://SEU_IP`
-
-(Substitua pelo IP da VPS.)
+No PC, no browser: **`http://SEU_IP`**.
 
 ---
 
-## 8. Se algo correr mal (checklist leigo)
+## 9. Porta 80 ocupada (outro site na mesma VPS)
 
-### “Permission denied” no `git clone`
-
-- Repo privado → use token ou SSH key da conta GitHub certa.  
-- Repo público → confirme o URL: `https://github.com/DevIgoor03/CopyTraderV3.git`
-
-### “`.env.prod` não encontrado”
-
-```bash
-cd /opt/copytrader
-ls -la .env.prod
-cp .env.production .env.prod && nano .env.prod
-```
-
-### Backend não fica healthy
-
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod logs backend --tail 100
-```
-
-Causas típicas: senha Postgres errada no `.env.prod`, variáveis ainda com `TROQUE_POR_...`, Postgres ainda a inicializar (espere 1 minuto e `docker compose ... restart backend`).
-
-### Prisma no Docker: “openssl”, “Error load”, “not valid JSON”
-
-No **Alpine**, o Prisma precisa do binário certo (OpenSSL 3) e das libs no contentor. O projeto já define `binaryTargets` no `schema.prisma` e instala `openssl` + `libc6-compat` no `Dockerfile`. Atualize o código (`git pull`) e faça **`bash deploy.sh --no-cache`**.
-
-### Página 502 no browser
-
-O frontend já está no ar mas o backend ainda não. Veja logs do `ct_backend` e do `ct_frontend`:
-
-```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod logs ct_frontend --tail 50
-```
-
-### Porta 80 já em uso
-
-Outro serviço (Apache, outro Nginx) está na 80. Na VPS:
+Se o deploy do frontend falhar com *port already allocated*:
 
 ```bash
 ss -tlnp | grep ':80'
+docker ps
 ```
 
-Pare o serviço conflituoso ou ajuste o mapeamento em `docker-compose.prod.yml` (avançado).
-
-### Firewall bloqueia
-
-O `setup-vps.sh` deve abrir 80 e 443. Confirme:
-
-```bash
-ufw status
-```
+Para o que estiver a usar a **80** (outro Nginx, outro Docker) ou usa **um só** reverse proxy para vários domínios.
 
 ---
 
-## 9. Domínio e HTTPS (opcional, depois)
+## 10. HTTPS com domínio (opcional)
 
-1. No painel do **domínio**, crie registo **A** para o **IP da VPS**.  
-2. Atualize `FRONTEND_URL` para `https://seudominio.com` e refaça deploy.  
-3. Na VPS existe o script `ssl-setup.sh` — siga as instruções em `documents/deploy-vps-hostinger.md` ou no próprio script.
+1. DNS **A** do domínio → IP da VPS.  
+2. `FRONTEND_URL=https://teu-dominio.com` no `.env.prod`.  
+3. Na VPS, com Certbot (exemplo; ajusta o domínio):
+
+```bash
+docker stop roboauto_frontend
+apt-get install -y certbot
+certbot certonly --standalone -d teu-dominio.com --email teu@email.com --agree-tos --non-interactive
+```
+
+4. Configura **SSL** no `frontend/nginx.conf` (ou script `ssl-setup.sh` do repo, se estiver alinhado ao teu domínio) e volta a subir o frontend.
 
 ---
 
-## 10. Resumo dos comandos (cola rápida)
+## 11. Resumo rápido (copiar)
 
 ```bash
-# 1) SSH
 ssh root@SEU_IP
-
-# 2) Clonar + setup (primeira vez)
 apt-get update -qq && apt-get install -y -qq git curl
-mkdir -p /opt/copytrader
-git clone https://github.com/DevIgoor03/CopyTraderV3.git /opt/copytrader
-cd /opt/copytrader
+mkdir -p /opt/robo-auto && cd /opt/robo-auto
+git clone https://github.com/DevIgoor03/robo-auto.git .
 chmod +x setup-vps.sh && bash setup-vps.sh
-
-# 3) Variáveis
-cp .env.production .env.prod
-nano .env.prod
-
-# 4) Deploy
+cp .env.production .env.prod && nano .env.prod
 chmod +x deploy.sh && bash deploy.sh
 ```
 
 ---
 
-## Referências no projeto
+## Referências no repositório
 
-- Stack de produção: `docker-compose.prod.yml`  
-- Script de deploy: `deploy.sh`  
-- Template de env: `.env.production` → cópia local **`.env.prod`** (não vai para o Git)  
-- Guia técnico complementar: `documents/deploy-vps-hostinger.md`  
-- Repositório: [DevIgoor03/CopyTraderV3](https://github.com/DevIgoor03/CopyTraderV3)
+- `docker-compose.prod.yml` — stack de produção  
+- `deploy.sh` — build e `docker compose up`  
+- `.env.production` — modelo para criar `.env.prod`  
+- [Repositório robo-auto](https://github.com/DevIgoor03/robo-auto)  
+
+### Logs úteis
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs backend --tail 80
+docker compose -f docker-compose.prod.yml --env-file .env.prod logs frontend --tail 50
+```
+
+Contentores típicos: `roboauto_backend`, `roboauto_frontend`, `roboauto_postgres`, `roboauto_redis`.
