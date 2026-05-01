@@ -2,6 +2,7 @@
 # New → Blueprint no dashboard e escolhe este repositório.
 #
 # Variáveis pedidas na 1.ª vez: JWT_SECRET, JWT_REFRESH_SECRET, ENCRYPTION_KEY (sync: false).
+# URLs sem domínio próprio (ajusta no painel Render se o teu workspace usar outro subdomínio).
 # Confirma no painel as URLs .onrender.com; se forem diferentes, ajusta FRONTEND_URL e VITE_API_URL.
 
 version: "1"

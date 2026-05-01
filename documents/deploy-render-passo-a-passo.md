@@ -2,6 +2,17 @@
 
 Este projeto está preparado com **`render.yaml`** na raiz (Blueprint): PostgreSQL, Key Value (Redis), API Node (`backend`) e site estático (`frontend`).
 
+## Sem domínio próprio (só `.onrender.com`)
+
+Não precisas de domínio. O **`render.yaml`** já define:
+
+- **`FRONTEND_URL`** na API = `https://robo-auto-web.onrender.com`
+- **`VITE_API_URL`** no build do static = `https://robo-auto-api.onrender.com`
+
+A Render usa em geral o **nome do serviço** no URL. Se no painel as URLs forem **ligeiramente diferentes** (ex. sufixo), corrige **só no dashboard** (Environment) e faz **redeploy** do static com *clear build cache*.
+
+O ficheiro **`.env.production`** na raiz do repo é **só para VPS/Docker** — **não** é usado pelo Blueprint da Render.
+
 ---
 
 ## Pré-requisitos
